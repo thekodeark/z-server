@@ -1,0 +1,56 @@
+name: Deploy
+
+on:
+ 
+  push:
+    branches: [ master, main ]
+
+# Ensures that only one deploy task per branch/environment will run at a time    
+# concurrency:
+#   group: deploy-${{ github.ref }}
+#   cancel-in-progress: true
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    env:
+      TF_WORKSPACE: dev
+      TFE_APPLY: ${{ secrets.TFE_APPLY }}
+    defaults:
+      run:
+        working-directory: ./deployment
+    steps:
+    - uses: actions/checkout@v2
+    - uses: hashicorp/setup-terraform@v1
+      with:
+        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+    - name: Terraform fmt
+      id: fmt
+      run: |
+        terraform fmt -check
+      continue-on-error: true
+
+    - name: Terraform Init
+      id: init
+      run: |
+        terraform init
+
+    - name: Terraform Validate
+      id: validate
+      run: |
+        terraform validate -no-color
+      continue-on-error: false
+
+    - name: Terraform Plan
+      id: plan
+      run: |
+        terraform plan -input=false
+      continue-on-error: false
+
+    - name: Terraform Apply
+      if: "${{ env.TFE_APPLY == 'true' }}"
+      id: apply
+      run: |
+        terraform apply -input=false -auto-approve
+      continue-on-error: false
